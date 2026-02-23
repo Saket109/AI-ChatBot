@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime
 from typing import Dict
 
@@ -11,6 +12,7 @@ from googleapiclient.discovery import build
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE")
+SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")  # JSON content as env var (for Render)
 SPREADSHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 
 SHEET_NAME = "Leads"  # change if needed
@@ -19,12 +21,26 @@ SHEET_NAME = "Leads"  # change if needed
 # AUTH
 # ----------------------------------------
 def get_sheets_service():
-    if not SERVICE_ACCOUNT_FILE or not SPREADSHEET_ID:
-        raise RuntimeError("Google Sheets env variables missing")
+    if not SPREADSHEET_ID:
+        raise RuntimeError("GOOGLE_SHEET_ID env variable is missing")
 
-    creds = Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES
-    )
+    # Option 1: Read from JSON file (local dev)
+    if SERVICE_ACCOUNT_FILE and os.path.exists(SERVICE_ACCOUNT_FILE):
+        creds = Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES
+        )
+    # Option 2: Read from JSON env var (Render deployment)
+    elif SERVICE_ACCOUNT_JSON:
+        service_info = json.loads(SERVICE_ACCOUNT_JSON)
+        creds = Credentials.from_service_account_info(
+            service_info, scopes=SCOPES
+        )
+    else:
+        raise RuntimeError(
+            "Google Sheets credentials missing. Set either "
+            "GOOGLE_SERVICE_ACCOUNT_FILE (path) or "
+            "GOOGLE_SERVICE_ACCOUNT_JSON (JSON content)"
+        )
 
     service = build("sheets", "v4", credentials=creds)
     return service

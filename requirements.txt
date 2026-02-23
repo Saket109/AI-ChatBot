@@ -1,10 +1,25 @@
+# Core
 fastapi
 uvicorn
 python-dotenv
-pydantic
+pydantic[email]
 loguru
 
-google-auth 
-google-auth-oauthlib 
+# Database
+pymysql
+mysql-connector-python
+
+# Google Sheets
+google-auth
+google-auth-oauthlib
 gspread
 google-api-python-client
+
+# LangChain / RAG
+langchain
+langchain-community
+langchain-core
+langchain-openai
+langchain-text-splitters
+faiss-cpu
+pypdf

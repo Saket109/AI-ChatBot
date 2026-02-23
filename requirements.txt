@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-dotenv
+pydantic
+loguru
+
+oogle-auth 
+google-auth-oauthlib 
+gspread
+google-api-python-client

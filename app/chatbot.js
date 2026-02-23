@@ -93,6 +93,7 @@
       font-size: 14px;
       line-height: 1.5;
       word-wrap: break-word;
+      white-space: pre-wrap;
     }
 
     .cw-user {
@@ -162,37 +163,49 @@
       background: rgba(255,255,255,0.35);
     }
 
-    /* -------- Typing Indicator -------- */
-    .cw-typing {
-      display: flex;
-      gap: 4px;
-      padding: 8px 12px;
+    /* -------- Thinking Status Indicator -------- */
+    .cw-thinking {
+      padding: 10px 14px;
       background: #e4e6eb;
       border-radius: 12px;
       width: fit-content;
       margin-bottom: 10px;
+      font-size: 13px;
+      color: #555;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    .cw-typing span {
-      width: 7px;
-      height: 7px;
+    .cw-thinking-dot {
+      display: inline-flex;
+      gap: 3px;
+    }
+
+    .cw-thinking-dot span {
+      width: 5px;
+      height: 5px;
       background: #888;
       border-radius: 50%;
-      animation: cw-blink 1.4s infinite both;
+      animation: cw-pulse 1.2s infinite both;
     }
 
-    .cw-typing span:nth-child(2) {
-      animation-delay: 0.2s;
+    .cw-thinking-dot span:nth-child(2) { animation-delay: 0.15s; }
+    .cw-thinking-dot span:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes cw-pulse {
+      0%   { opacity: 0.3; transform: scale(0.85); }
+      50%  { opacity: 1;   transform: scale(1);    }
+      100% { opacity: 0.3; transform: scale(0.85); }
     }
 
-    .cw-typing span:nth-child(3) {
-      animation-delay: 0.4s;
+    .cw-thinking-text {
+      animation: cw-fade-in 0.3s ease;
     }
 
-    @keyframes cw-blink {
-      0%   { opacity: 0.2; }
-      20%  { opacity: 1;   }
-      100% { opacity: 0.2; }
+    @keyframes cw-fade-in {
+      from { opacity: 0; transform: translateY(2px); }
+      to   { opacity: 1; transform: translateY(0);   }
     }
 
     /* -------- Mobile Responsive -------- */
@@ -246,12 +259,67 @@
     return sessionId;
   }
 
+  function isScrolledToBottom() {
+    return messagesDiv.scrollHeight - messagesDiv.scrollTop - messagesDiv.clientHeight < 40;
+  }
+
+  function scrollToBottom() {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+
   function addMessage(text, sender) {
     const msg = document.createElement("div");
     msg.className = `cw-msg cw-${sender}`;
     msg.innerText = text;
     messagesDiv.appendChild(msg);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    scrollToBottom();
+    return msg;
+  }
+
+  /**
+   * Typewriter effect: renders AI response word-by-word.
+   * Preserves newlines and structure from the original response.
+   * User can scroll up freely; auto-scroll only when at bottom.
+   */
+  function typewriterMessage(text) {
+    const msg = document.createElement("div");
+    msg.className = "cw-msg cw-bot";
+    msg.textContent = "";
+    messagesDiv.appendChild(msg);
+    scrollToBottom();
+
+    // Split into tokens: each word or newline character is a token
+    const tokens = text.split(/(\n)/);
+    const wordTokens = [];
+    for (const segment of tokens) {
+      if (segment === "\n") {
+        wordTokens.push("\n");
+      } else {
+        const words = segment.split(/( +)/);
+        for (const w of words) {
+          if (w) wordTokens.push(w);
+        }
+      }
+    }
+
+    let i = 0;
+    let current = "";
+    const WORD_DELAY = 40; // ms per token
+
+    return new Promise((resolve) => {
+      function tick() {
+        if (i < wordTokens.length) {
+          current += wordTokens[i];
+          msg.textContent = current;
+          i++;
+          if (isScrolledToBottom()) scrollToBottom();
+          setTimeout(tick, WORD_DELAY);
+        } else {
+          resolve();
+        }
+      }
+      tick();
+    });
   }
 
   function clearConversation() {
@@ -260,32 +328,71 @@
     localStorage.removeItem("cw_session_id");
   }
 
-  /* ====================== Typing Indicator ====================== */
-  let typingEl = null;
+  /* ====================== Thinking Status Indicator ====================== */
+  let thinkingEl = null;
+  let thinkingInterval = null;
+  const THINKING_PHASES = [
+    "Thinking",
+    "Analyzing your question",
+    "Searching knowledge base",
+    "Reading relevant documents",
+    "Cross-referencing data",
+    "Evaluating best answer",
+    "Reviewing context",
+    "Synthesizing information",
+    "Finalizing response",
+    "Almost there"
+  ];
 
-  function showTyping() {
-    typingEl = document.createElement("div");
-    typingEl.className = "cw-typing";
-    typingEl.innerHTML = "<span></span><span></span><span></span>";
-    messagesDiv.appendChild(typingEl);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  function showThinking() {
+    thinkingEl = document.createElement("div");
+    thinkingEl.className = "cw-thinking";
+    thinkingEl.innerHTML = `
+      <div class="cw-thinking-dot"><span></span><span></span><span></span></div>
+      <span class="cw-thinking-text">Thinking...</span>
+    `;
+    messagesDiv.appendChild(thinkingEl);
+    scrollToBottom();
+
+    let phase = 0;
+    thinkingInterval = setInterval(() => {
+      let next;
+      do {
+        next = Math.floor(Math.random() * THINKING_PHASES.length);
+      } while (next === phase);
+      phase = next;
+      const textEl = thinkingEl && thinkingEl.querySelector(".cw-thinking-text");
+      if (textEl) {
+        textEl.style.animation = "none";
+        void textEl.offsetHeight; // trigger reflow
+        textEl.style.animation = "cw-fade-in 0.3s ease";
+        textEl.textContent = THINKING_PHASES[phase] + "...";
+      }
+    }, 3500);
   }
 
-  function hideTyping() {
-    if (typingEl) {
-      typingEl.remove();
-      typingEl = null;
+  function hideThinking() {
+    if (thinkingInterval) {
+      clearInterval(thinkingInterval);
+      thinkingInterval = null;
+    }
+    if (thinkingEl) {
+      thinkingEl.remove();
+      thinkingEl = null;
     }
   }
 
   /* ====================== Send Message ====================== */
+  let isSending = false;
+
   async function sendMessage() {
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || isSending) return;
 
+    isSending = true;
     input.value = "";
     addMessage(text, "user");
-    showTyping();
+    showThinking();
 
     try {
       const sessionId = getSessionId();
@@ -299,13 +406,15 @@
       });
 
       const data = await res.json();
-      hideTyping();
+      hideThinking();
 
       const reply = data.answer || "No response";
-      addMessage(reply, "bot");
+      await typewriterMessage(reply);
     } catch (err) {
-      hideTyping();
+      hideThinking();
       addMessage("Error connecting to server", "bot");
+    } finally {
+      isSending = false;
     }
   }
 
